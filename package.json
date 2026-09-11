@@ -1,0 +1,26 @@
+{
+  "name": "aa-merl-desk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "@tanstack/react-router": "^1.170.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "clsx": "^2.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.3.0",
+    "vite": "^8.2.0",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^5.7.0"
+  }
+}
