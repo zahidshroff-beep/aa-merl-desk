@@ -8,3 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 export function uid() {
   return crypto.randomUUID();
 }
+
+export function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}

@@ -50,3 +50,10 @@
     line-height: 1.2;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
