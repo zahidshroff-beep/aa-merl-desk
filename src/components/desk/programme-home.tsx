@@ -35,6 +35,45 @@ export function ProgrammeHome() {
         </div>
       </header>
       <main className="mx-auto grid max-w-3xl gap-8 px-4 py-8">
+        <section className="rounded-[var(--radius-xl)] border border-border bg-sunken p-5">
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">
+            Tester walk · 20 minutes
+          </p>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed">
+            <li>
+              Open a desk for a <span className="font-medium">real programme</span> you work
+              on. Paste that programme’s TOR (or proposal) as text. PDF must be pasted.
+            </li>
+            <li>
+              <span className="font-medium">Automate this step</span> on Purpose. Check names,
+              decisions, and “do not collect” against the TOR. Then Accept — or refuse if the
+              draft is wrong.
+            </li>
+            <li>
+              Repeat for ToC, then Inception. Auto cannot record client Accept. Attach a
+              letter or write a dated note. Name who accepted.
+            </li>
+            <li>
+              Ethics: sites come in UNKNOWN. Try to mark Cleared with no letter — it must
+              refuse. Try Not required with only “programme” confirmation — it must refuse.
+              Heightened scrutiny closes that shortcut.
+            </li>
+            <li>
+              Send the 48-hour request to the country focal point (ICC, not an intermediary).
+              Incomplete replies stay incomplete.
+            </li>
+            <li>
+              Field: add a respondent missing contact — log a KII — it must stay blocked. Complete
+              the row on an open site, then it can plan.
+            </li>
+          </ol>
+          <p className="mt-3 text-sm text-muted">
+            Stages 3–8 on the rail are the rest of AA’s process. They are visible and locked
+            on this walk. Do not score them. Use “Load example documents” only if you have no
+            TOR to hand. Notes stay in this browser.
+          </p>
+        </section>
+
         <section className="rounded-[var(--radius-xl)] border border-border bg-surface p-5">
           <h2 className="text-lg">New programme</h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -95,39 +134,6 @@ export function ProgrammeHome() {
               Load example documents
             </Button>
           </div>
-        </section>
-
-        <section className="rounded-[var(--radius-xl)] border border-border bg-surface p-5">
-          <h2 className="text-lg">For testers</h2>
-          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed text-muted">
-            <li>
-              Open a <span className="text-fg">new programme</span> for a live Altamont
-              assignment. Do not start with the example unless you only want to see Auto.
-            </li>
-            <li>
-              Paste that programme’s TOR / proposal / logframe as text in Source documents.
-            </li>
-            <li>
-              On each built stage: <span className="text-fg">Automate this step</span> or{" "}
-              <span className="text-fg">Do this step myself</span>. Auto must not Accept.
-            </li>
-            <li>
-              Accept only when names, decisions, and the framework are true for that
-              programme. Empty Accept must refuse.
-            </li>
-            <li>
-              Inception: AA Accept, then client Accept with a letter or dated note. Field
-              stays closed until both.
-            </li>
-            <li>
-              Ethics: marking Cleared without a letter or a written waiver must refuse. OPEN
-              and HOLD sites must refuse field events.
-            </li>
-          </ol>
-          <p className="mt-3 text-sm text-muted">
-            Send notes on whether this is the AA process, where Auto is wrong, and what is
-            still missing. Work stays in this browser.
-          </p>
         </section>
 
         <section>

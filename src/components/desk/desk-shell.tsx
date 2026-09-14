@@ -90,11 +90,19 @@ export function DeskShell({ pid }: { pid: string }) {
                 onChange={(e) => patchProgramme(pid, { period: e.target.value })}
               />
             </div>
-            <div className="sm:col-span-2 lg:col-span-4">
+            <div className="sm:col-span-2">
               <Label>Walk as (signed on Accept)</Label>
               <Input
                 value={prog.walkAs}
                 onChange={(e) => patchProgramme(pid, { walkAs: e.target.value })}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>ICC (default — country can override)</Label>
+              <Input
+                value={prog.defaultIcc}
+                placeholder="Named in-country consultant"
+                onChange={(e) => patchProgramme(pid, { defaultIcc: e.target.value })}
               />
             </div>
           </div>
@@ -196,9 +204,9 @@ export function DeskShell({ pid }: { pid: string }) {
                     <Button variant="ghost" onClick={() => unlock(pid, prog.stageId)}>
                       Unlock
                     </Button>
-                  ) : prog.stageId !== "field" ? (
+                  ) : (
                     <Button onClick={() => accept(pid, prog.stageId)}>Accept this stage</Button>
-                  ) : null}
+                  )}
                 </div>
               ) : null}
 

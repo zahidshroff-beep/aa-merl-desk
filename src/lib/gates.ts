@@ -1,4 +1,12 @@
+import {
+  clearedLegal,
+  countryFieldOpen,
+  notRequiredLegal,
+  respondentComplete,
+  respondentGaps,
+} from "@/lib/country";
 import type {
+  CountryUnit,
   EthicsObject,
   FieldObject,
   InceptionObject,
@@ -66,25 +74,23 @@ export function inceptionClientGate(i: InceptionObject): Gate {
   return { ok: gaps.length === 0, gaps };
 }
 
-export function countryClearedLegal(c: EthicsObject["countries"][number]): boolean {
-  if (c.status !== "CLEARED") return true;
-  const letter = c.letterName.trim().length > 0;
-  const waiver = c.waiver.trim().length >= 40;
-  return letter || waiver;
+export function countryPathLegal(c: CountryUnit): Gate {
+  if (c.path === "NOT_REQUIRED") return notRequiredLegal(c);
+  if (c.path === "CLEARED") return clearedLegal(c);
+  return { ok: true, gaps: [] };
 }
 
 export function ethicsGate(e: EthicsObject): Gate {
   const gaps: string[] = [];
   if (e.countries.length < 1) gaps.push("Put the countries from this programme's documents on the dossier.");
   for (const c of e.countries) {
-    if (c.status === "OPEN") {
-      gaps.push(`${c.name} is still OPEN. Mark Hold or Cleared.`);
-    }
-    if (c.status === "CLEARED" && !countryClearedLegal(c)) {
+    if (c.path === "UNKNOWN") {
       gaps.push(
-        `${c.name} cannot be Cleared without an approval letter or a written “not required” waiver (40+ characters).`,
+        `${c.name} is still UNKNOWN. Investigate: was approval required for the programme, was it obtained, does the evaluation follow the same rule?`,
       );
     }
+    const legal = countryPathLegal(c);
+    if (!legal.ok) gaps.push(...legal.gaps);
   }
   if (e.protocols.filter((p) => p.method.trim() && p.instrument.trim()).length < 1) {
     gaps.push("Name at least one protocol (method + instrument).");
@@ -96,24 +102,42 @@ export function canLogEvent(
   ethics: EthicsObject,
   inception: InceptionObject,
   countryId: string,
+  respondentId: string | null,
+  protocolsAccepted: boolean,
 ): { ok: boolean; reason: string | null } {
   if (!inception.clientAcceptedAt) {
     return { ok: false, reason: "Fieldwork is blocked until the client Accepts inception." };
   }
+  if (!protocolsAccepted) {
+    return { ok: false, reason: "Fieldwork is blocked until protocols and ethics are Accepted." };
+  }
   const country = ethics.countries.find((c) => c.id === countryId);
   if (!country) return { ok: false, reason: "Unknown site." };
-  if (country.status === "OPEN") {
-    return { ok: false, reason: `${country.name} is OPEN. No events until Hold or Cleared.` };
+  const open = countryFieldOpen(country);
+  if (!open.ok) return open;
+  if (!respondentId) {
+    return { ok: false, reason: `Name the respondent from the ${country.name} frame. Empty rows cannot be interviewed.` };
   }
-  if (country.status === "HOLD") {
-    return { ok: false, reason: `${country.name} is on ethics HOLD. No new events.` };
-  }
-  if (country.status === "CLEARED" && !countryClearedLegal(country)) {
-    return { ok: false, reason: `${country.name} was marked Cleared without a letter or waiver.` };
+  const person = country.respondents.find((r) => r.id === respondentId);
+  if (!person) return { ok: false, reason: "That respondent is not on this country's frame." };
+  if (!respondentComplete(person)) {
+    const missing = respondentGaps(person).join(", ");
+    return {
+      ok: false,
+      reason: `${person.role || person.group || "This row"} is incomplete (${missing}). Cannot schedule the KII.`,
+    };
   }
   return { ok: true, reason: null };
 }
 
-export function fieldReady(ethics: EthicsObject, inception: InceptionObject, field: FieldObject) {
-  return Boolean(inception.clientAcceptedAt) && ethicsGate(ethics).ok && field.events.length >= 0;
+export function fieldGate(ethics: EthicsObject, field: FieldObject): Gate {
+  const gaps: string[] = [];
+  const complete = ethics.countries.flatMap((c) => c.respondents.filter(respondentComplete));
+  if (complete.length < 1) {
+    gaps.push("Add at least one complete respondent (group, role, programme engagement, contact).");
+  }
+  if (field.events.filter((e) => e.status === "planned").length < 1) {
+    gaps.push("Plan at least one field event against a complete respondent on an open site.");
+  }
+  return { ok: gaps.length === 0, gaps };
 }

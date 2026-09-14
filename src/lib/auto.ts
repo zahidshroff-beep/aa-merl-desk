@@ -1,3 +1,4 @@
+import { emptyCountry, emptyRequest, ETHICS_ASK } from "@/lib/country";
 import type { ExtractedDraft } from "@/lib/extract-types";
 import { uid } from "@/lib/utils";
 import type {
@@ -105,23 +106,31 @@ export function autoInception(current: InceptionObject, draft: ExtractedDraft): 
   };
 }
 
-export function autoEthics(current: EthicsObject, draft: ExtractedDraft): EthicsObject {
+/**
+ * Add countries from this programme's documents as UNKNOWN.
+ * Draft the three ethics questions as unsent requests.
+ * Never marks Cleared or Not required. Never sets or unsets heightened scrutiny.
+ */
+export function autoEthics(current: EthicsObject, draft: ExtractedDraft, icc = ""): EthicsObject {
   const have = new Set(current.countries.map((c) => c.name.trim().toLowerCase()));
-  const countries = [
-    ...current.countries,
-    ...(draft.countries ?? [])
-      .filter((c) => str(c.name) && !have.has(c.name.trim().toLowerCase()))
-      .map((c) => ({
-        id: uid(),
-        name: c.name,
-        notes: str(c.notes),
-        status: "OPEN" as const,
-        letterName: "",
-        letterDate: "",
-        waiver: "",
-        irbRequired: Boolean(c.irbRequired),
-      })),
-  ];
+  const incoming = (draft.countries ?? [])
+    .filter((c) => str(c.name) && !have.has(c.name.trim().toLowerCase()))
+    .map((c) => {
+      const unit = emptyCountry(c.name, icc);
+      unit.notes = str(c.notes);
+      unit.requests = [emptyRequest(ETHICS_ASK, icc, "")];
+      return unit;
+    });
+
+  const countries = [...current.countries, ...incoming].map((c) => {
+    const hasAsk = c.requests.some((r) => r.asked.trim() === ETHICS_ASK);
+    if (hasAsk) return c;
+    return {
+      ...c,
+      requests: [...c.requests, emptyRequest(ETHICS_ASK, c.icc || icc, c.focalPoint)],
+    };
+  });
+
   const haveMethod = new Set(current.protocols.map((p) => p.method.trim().toLowerCase()));
   const protocols = [
     ...current.protocols,

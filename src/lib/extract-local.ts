@@ -15,7 +15,7 @@ const METHOD_WORDS = [
 ];
 
 const COUNTRY_HINT =
-  /\b(Afghanistan|Bangladesh|Cambodia|Cameroon|Chad|Ethiopia|Ghana|India|Indonesia|Iraq|Jordan|Kenya|Lao PDR|Lebanon|Liberia|Malawi|Mali|Mozambique|Myanmar|Nepal|Nigeria|Pakistan|Palestine|Rwanda|Senegal|Sierra Leone|Somalia|South Sudan|Sudan|Syria|Tanzania|Thailand|Uganda|Ukraine|Viet Nam|Vietnam|Yemen|Zambia|Zimbabwe|Cox['’]s Bazar|Mae Sot|Yangon|Kachin|Juba|Nairobi|Addis|Kampala|Dhaka|Beirut)\b/gi;
+  /\b(Afghanistan|Bangladesh|Benin|Burkina Faso|Cambodia|Cameroon|Chad|Côte d['’]Ivoire|Cote d['’]Ivoire|DRC|Ethiopia|Ghana|Guinea|India|Indonesia|Iraq|Jordan|Kenya|Lao PDR|Lebanon|Liberia|Malawi|Mali|Mozambique|Myanmar|Nepal|Niger|Nigeria|Pakistan|Palestine|Rwanda|Senegal|Sierra Leone|Somalia|South Sudan|Sudan|Syria|Tanzania|Thailand|Togo|Uganda|Ukraine|Viet Nam|Vietnam|Yemen|Zambia|Zimbabwe|Cox['’]s Bazar|Mae Sot|Yangon|Kachin|Juba|Nairobi|Addis|Kampala|Dhaka|Beirut)\b/gi;
 
 function hit(doc: SourceDoc, locator: string) {
   return { docId: doc.id, docTitle: doc.title, locator };

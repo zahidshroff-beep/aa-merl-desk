@@ -73,7 +73,38 @@ export type InceptionObject = {
   clientLetterName: string;
 };
 
-export type EthicsStatus = "OPEN" | "HOLD" | "CLEARED";
+/** Per-country ethics investigation. Auto never sets CLEARED or NOT_REQUIRED. */
+export type EthicsPath =
+  | "UNKNOWN"
+  | "NOT_REQUIRED"
+  | "REQUIRED"
+  | "IN_PROCESS"
+  | "CLEARED";
+
+export type YesNoUnknown = "yes" | "no" | "unknown" | "na" | "";
+
+export type NotRequiredAppliesTo = "programme" | "evaluation" | "both" | "";
+
+export type RequestStatus = "draft" | "open" | "complete" | "incomplete" | "overdue";
+
+export type CountryRequest = {
+  id: string;
+  asked: string;
+  askedTo: string;
+  askedBy: string;
+  sentAt: string;
+  dueAt: string;
+  status: RequestStatus;
+  responseNote: string;
+};
+
+export type Respondent = {
+  id: string;
+  group: string;
+  role: string;
+  programmeEngagement: string;
+  contact: string;
+};
 
 export type ProtocolRow = {
   id: string;
@@ -82,19 +113,34 @@ export type ProtocolRow = {
   consentScript: boolean;
 };
 
-export type CountryEthics = {
+/** Country is the operating unit: roles, ethics path, 48h requests, sample frame. */
+export type CountryUnit = {
   id: string;
   name: string;
   notes: string;
-  status: EthicsStatus;
+  focalPoint: string;
+  focalRole: string;
+  icc: string;
+  heightenedScrutiny: boolean;
+  scrutinyNote: string;
+  path: EthicsPath;
+  programmeApprovalRequired: YesNoUnknown;
+  programmeApprovalObtained: YesNoUnknown;
+  evaluationSameAsProgramme: YesNoUnknown;
+  notRequiredConfirmedBy: string;
+  notRequiredConfirmedAt: string;
+  notRequiredAppliesTo: NotRequiredAppliesTo;
+  notRequiredNote: string;
+  submittedAt: string;
+  expectedDays: number;
   letterName: string;
   letterDate: string;
-  waiver: string;
-  irbRequired: boolean;
+  requests: CountryRequest[];
+  respondents: Respondent[];
 };
 
 export type EthicsObject = {
-  countries: CountryEthics[];
+  countries: CountryUnit[];
   protocols: ProtocolRow[];
 };
 
@@ -103,6 +149,7 @@ export type FieldEvent = {
   title: string;
   method: string;
   countryId: string;
+  respondentId: string | null;
   status: "planned" | "blocked" | "completed";
   blockedReason: string | null;
 };
@@ -133,6 +180,8 @@ export type Programme = DeskState & {
   client: string;
   period: string;
   walkAs: string;
+  /** Named ICC; new countries inherit this. Per-country ICC can override. */
+  defaultIcc: string;
   documents: SourceDoc[];
   chair: ChairId;
   stageId: StageId;

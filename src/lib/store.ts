@@ -8,11 +8,22 @@ import {
   type StageId,
 } from "@/lib/aa-process";
 import { autoEthics, autoInception, autoPurpose, autoToc } from "@/lib/auto";
+import {
+  emptyCountry,
+  emptyRequest,
+  emptyRespondent,
+  ETHICS_ASK,
+  mapCountry,
+  migrateProgramme,
+  stampSend,
+} from "@/lib/country";
 import { draftHasSignal, extractLocal } from "@/lib/extract-local";
 import type { ExtractedDraft } from "@/lib/extract-types";
 import {
   canLogEvent,
+  countryPathLegal,
   ethicsGate,
+  fieldGate,
   inceptionAaGate,
   inceptionClientGate,
   purposeGate,
@@ -24,8 +35,11 @@ import {
   emptyInception,
   emptyPurpose,
   emptyToc,
-  type EthicsStatus,
+  type CountryUnit,
+  type EthicsPath,
   type Programme,
+  type RequestStatus,
+  type Respondent,
   type StageMeta,
 } from "@/lib/objects";
 import {
@@ -53,6 +67,7 @@ export function newProgramme(input: {
   client: string;
   period: string;
   walkAs: string;
+  defaultIcc?: string;
   documents?: SourceDoc[];
 }): Programme {
   return {
@@ -61,6 +76,7 @@ export function newProgramme(input: {
     client: input.client.trim(),
     period: input.period.trim(),
     walkAs: input.walkAs.trim() || "Altamont Advisory",
+    defaultIcc: (input.defaultIcc ?? "").trim(),
     documents: input.documents ?? [],
     stages: initialStages(),
     purpose: emptyPurpose(),
@@ -86,10 +102,14 @@ type DeskStore = {
     client: string;
     period: string;
     walkAs: string;
+    defaultIcc?: string;
   }) => string;
   createExample: () => string;
   removeProgramme: (id: string) => void;
-  patchProgramme: (id: string, patch: Partial<Pick<Programme, "name" | "client" | "period" | "walkAs">>) => void;
+  patchProgramme: (
+    id: string,
+    patch: Partial<Pick<Programme, "name" | "client" | "period" | "walkAs" | "defaultIcc">>,
+  ) => void;
   addDocument: (id: string, doc: Omit<SourceDoc, "id">) => void;
   updateDocument: (id: string, docId: string, patch: Partial<SourceDoc>) => void;
   removeDocument: (id: string, docId: string) => void;
@@ -100,14 +120,34 @@ type DeskStore = {
   patchToc: (id: string, fn: (t: Programme["toc"]) => Programme["toc"]) => void;
   patchInception: (id: string, fn: (i: Programme["inception"]) => Programme["inception"]) => void;
   patchEthics: (id: string, fn: (e: Programme["ethics"]) => Programme["ethics"]) => void;
+  addCountry: (id: string, name: string) => void;
+  patchCountry: (id: string, countryId: string, patch: Partial<CountryUnit>) => void;
+  setCountryPath: (id: string, countryId: string, path: EthicsPath) => void;
+  setScrutiny: (id: string, countryId: string, on: boolean, note: string) => void;
+  attachLetter: (id: string, countryId: string, fileName: string) => void;
+  addRequest: (id: string, countryId: string, asked?: string) => void;
+  patchRequest: (
+    id: string,
+    countryId: string,
+    requestId: string,
+    patch: Partial<Pick<Programme["ethics"]["countries"][number]["requests"][number], "asked" | "askedTo" | "askedBy" | "responseNote">>,
+  ) => void;
+  sendRequest: (id: string, countryId: string, requestId: string) => void;
+  markRequest: (
+    id: string,
+    countryId: string,
+    requestId: string,
+    status: Extract<RequestStatus, "complete" | "incomplete">,
+    note: string,
+  ) => void;
+  addRespondent: (id: string, countryId: string) => void;
+  patchRespondent: (id: string, countryId: string, respondentId: string, patch: Partial<Respondent>) => void;
+  removeRespondent: (id: string, countryId: string, respondentId: string) => void;
   automate: (id: string, stageId: StageId) => Promise<void>;
   accept: (id: string, stageId: StageId) => void;
   unlock: (id: string, stageId: StageId) => void;
   clientAcceptInception: (id: string) => void;
-  setCountryStatus: (id: string, countryId: string, status: EthicsStatus) => void;
-  attachLetter: (id: string, countryId: string, fileName: string) => void;
-  setWaiver: (id: string, countryId: string, waiver: string) => void;
-  logEvent: (id: string, title: string, method: string, countryId: string) => void;
+  logEvent: (id: string, title: string, method: string, countryId: string, respondentId: string) => void;
   resetWalk: (id: string) => void;
 };
 
@@ -121,6 +161,14 @@ function mapProg(
 
 function find(programmes: Programme[], id: string) {
   return programmes.find((p) => p.id === id);
+}
+
+function touchEthics(p: Programme, countries: CountryUnit[]): Programme {
+  return {
+    ...p,
+    ethics: { ...p.ethics, countries },
+    stages: { ...p.stages, protocols: working(p.stages.protocols, "manual") },
+  };
 }
 
 export const useDesk = create<DeskStore>()(
@@ -219,6 +267,222 @@ export const useDesk = create<DeskStore>()(
             stages: { ...p.stages, protocols: working(p.stages.protocols, "manual") },
           })),
         })),
+      addCountry: (id, name) => {
+        const trimmed = name.trim();
+        if (!trimmed) {
+          set({ notice: "Name the country first." });
+          return;
+        }
+        set((s) => ({
+          programmes: mapProg(s.programmes, id, (p) => {
+            if (p.ethics.countries.some((c) => c.name.trim().toLowerCase() === trimmed.toLowerCase())) {
+              return p;
+            }
+            const unit = emptyCountry(trimmed, p.defaultIcc);
+            unit.requests = [emptyRequest(ETHICS_ASK, p.defaultIcc, "")];
+            return touchEthics(p, [...p.ethics.countries, unit]);
+          }),
+          notice: `${trimmed} added as UNKNOWN. Auto will not mark Cleared.`,
+        }));
+      },
+      patchCountry: (id, countryId, patch) =>
+        set((s) => ({
+          programmes: mapProg(s.programmes, id, (p) =>
+            touchEthics(
+              p,
+              mapCountry(p.ethics.countries, countryId, (c) => ({ ...c, ...patch })),
+            ),
+          ),
+        })),
+      setCountryPath: (id, countryId, path) => {
+        const p = find(get().programmes, id);
+        if (!p) return;
+        const country = p.ethics.countries.find((c) => c.id === countryId);
+        if (!country) return;
+        const next: CountryUnit = { ...country, path };
+        const legal = countryPathLegal(next);
+        if (!legal.ok) {
+          set({ notice: legal.gaps[0] ?? "That path is not legal yet." });
+          return;
+        }
+        if (path === "IN_PROCESS" && !next.submittedAt) {
+          next.submittedAt = new Date().toISOString().slice(0, 10);
+        }
+        set({
+          programmes: mapProg(get().programmes, id, (prog) =>
+            touchEthics(
+              prog,
+              mapCountry(prog.ethics.countries, countryId, () => next),
+            ),
+          ),
+          notice:
+            path === "CLEARED"
+              ? `${country.name} Cleared on the letter. Field can open on this site after ethics is Accepted.`
+              : path === "NOT_REQUIRED"
+                ? `${country.name} Not required — named country-office confirmation for the evaluation. Heightened-scrutiny sites cannot use this.`
+                : null,
+        });
+      },
+      setScrutiny: (id, countryId, on, note) =>
+        set((s) => ({
+          programmes: mapProg(s.programmes, id, (p) =>
+            touchEthics(
+              p,
+              mapCountry(p.ethics.countries, countryId, (c) => ({
+                ...c,
+                heightenedScrutiny: on,
+                scrutinyNote: note,
+                path: on && c.path === "NOT_REQUIRED" ? "UNKNOWN" : c.path,
+              })),
+            ),
+          ),
+          notice: on
+            ? "Heightened scrutiny on. The Not required shortcut is closed. Auto cannot unset this."
+            : null,
+        })),
+      attachLetter: (id, countryId, fileName) =>
+        set((s) => ({
+          programmes: mapProg(s.programmes, id, (p) =>
+            touchEthics(
+              p,
+              mapCountry(p.ethics.countries, countryId, (c) => ({
+                ...c,
+                letterName: fileName,
+                letterDate: new Date().toISOString().slice(0, 10),
+              })),
+            ),
+          ),
+        })),
+      addRequest: (id, countryId, asked) =>
+        set((s) => ({
+          programmes: mapProg(s.programmes, id, (p) => {
+            const country = p.ethics.countries.find((c) => c.id === countryId);
+            if (!country) return p;
+            const req = emptyRequest(
+              asked?.trim() || ETHICS_ASK,
+              country.icc || p.defaultIcc || p.walkAs,
+              country.focalPoint,
+            );
+            return touchEthics(
+              p,
+              mapCountry(p.ethics.countries, countryId, (c) => ({
+                ...c,
+                requests: [...c.requests, req],
+              })),
+            );
+          }),
+        })),
+      patchRequest: (id, countryId, requestId, patch) =>
+        set((s) => ({
+          programmes: mapProg(s.programmes, id, (p) =>
+            touchEthics(
+              p,
+              mapCountry(p.ethics.countries, countryId, (c) => ({
+                ...c,
+                requests: c.requests.map((r) => (r.id === requestId ? { ...r, ...patch } : r)),
+              })),
+            ),
+          ),
+        })),
+      sendRequest: (id, countryId, requestId) => {
+        const p = find(get().programmes, id);
+        if (!p) return;
+        const country = p.ethics.countries.find((c) => c.id === countryId);
+        const req = country?.requests.find((r) => r.id === requestId);
+        if (!country || !req) return;
+        if (!req.asked.trim()) {
+          set({ notice: "Write what you are asking before you send." });
+          return;
+        }
+        const askedTo = req.askedTo.trim() || country.focalPoint.trim();
+        const askedBy = req.askedBy.trim() || country.icc.trim() || p.defaultIcc.trim() || p.walkAs;
+        if (!askedTo) {
+          set({ notice: `Name the ${country.name} focal point. ICC talks to them directly — no intermediaries.` });
+          return;
+        }
+        if (!askedBy) {
+          set({ notice: "Name the ICC (or walk-as) sending this request." });
+          return;
+        }
+        set({
+          programmes: mapProg(get().programmes, id, (prog) =>
+            touchEthics(
+              prog,
+              mapCountry(prog.ethics.countries, countryId, (c) => ({
+                ...c,
+                requests: c.requests.map((r) =>
+                  r.id === requestId ? stampSend(r, askedTo, askedBy) : r,
+                ),
+              })),
+            ),
+          ),
+          notice: `Sent to ${askedTo}. 48-hour clock started.`,
+        });
+      },
+      markRequest: (id, countryId, requestId, status, note) => {
+        if (status === "complete" && note.trim().length < 12) {
+          set({
+            notice:
+              "A reply is not complete because someone answered. Write what they confirmed (12+ characters), or mark Incomplete.",
+          });
+          return;
+        }
+        set((s) => ({
+          programmes: mapProg(s.programmes, id, (p) =>
+            touchEthics(
+              p,
+              mapCountry(p.ethics.countries, countryId, (c) => ({
+                ...c,
+                requests: c.requests.map((r) =>
+                  r.id === requestId ? { ...r, status, responseNote: note } : r,
+                ),
+              })),
+            ),
+          ),
+          notice:
+            status === "complete"
+              ? "Request marked complete."
+              : "Incomplete. The 48-hour clock still runs until the missing facts are in.",
+        }));
+      },
+      addRespondent: (id, countryId) =>
+        set((s) => ({
+          programmes: mapProg(s.programmes, id, (p) =>
+            touchEthics(
+              p,
+              mapCountry(p.ethics.countries, countryId, (c) => ({
+                ...c,
+                respondents: [...c.respondents, emptyRespondent()],
+              })),
+            ),
+          ),
+        })),
+      patchRespondent: (id, countryId, respondentId, patch) =>
+        set((s) => ({
+          programmes: mapProg(s.programmes, id, (p) =>
+            touchEthics(
+              p,
+              mapCountry(p.ethics.countries, countryId, (c) => ({
+                ...c,
+                respondents: c.respondents.map((r) =>
+                  r.id === respondentId ? { ...r, ...patch } : r,
+                ),
+              })),
+            ),
+          ),
+        })),
+      removeRespondent: (id, countryId, respondentId) =>
+        set((s) => ({
+          programmes: mapProg(s.programmes, id, (p) =>
+            touchEthics(
+              p,
+              mapCountry(p.ethics.countries, countryId, (c) => ({
+                ...c,
+                respondents: c.respondents.filter((r) => r.id !== respondentId),
+              })),
+            ),
+          ),
+        })),
       automate: async (id, stageId) => {
         const p = find(get().programmes, id);
         if (!p) return;
@@ -248,6 +512,13 @@ export const useDesk = create<DeskStore>()(
         if (stageId === "protocols" && !p.inception.clientAcceptedAt) {
           set({
             notice: "Client must Accept inception before protocols and ethics are drafted for field.",
+          });
+          return;
+        }
+        if (stageId === "field") {
+          set({
+            notice:
+              "Auto does not invent respondents. Add the sample frame yourself. Incomplete rows refuse KIIs.",
           });
           return;
         }
@@ -289,7 +560,7 @@ export const useDesk = create<DeskStore>()(
               if (stageId === "protocols") {
                 return {
                   ...prog,
-                  ethics: autoEthics(prog.ethics, draft),
+                  ethics: autoEthics(prog.ethics, draft, prog.defaultIcc),
                   stages: { ...prog.stages, protocols: working(prog.stages.protocols, "auto") },
                 };
               }
@@ -297,12 +568,11 @@ export const useDesk = create<DeskStore>()(
             }),
             notice:
               stageId === "protocols"
-                ? `Sites from ${via} are OPEN. Auto will not mark Cleared. You Accept.`
+                ? `Sites from ${via} are UNKNOWN. Auto drafted the three ethics questions as unsent requests. Auto will not mark Cleared or Not required.`
                 : `Drafted from ${via}. Appended — nothing overwritten. You Accept.`,
           });
         };
         apply(local, "this programme’s documents");
-
       },
       accept: (id, stageId) => {
         const p = find(get().programmes, id);
@@ -380,6 +650,14 @@ export const useDesk = create<DeskStore>()(
             return;
           }
           finish(ethicsGate(p.ethics).ok, ethicsGate(p.ethics).gaps);
+          return;
+        }
+        if (stageId === "field") {
+          if (p.stages.protocols.state !== "accepted") {
+            set({ notice: "Accept protocols and ethics first." });
+            return;
+          }
+          finish(fieldGate(p.ethics, p.field).ok, fieldGate(p.ethics, p.field).gaps);
         }
       },
       unlock: (id, stageId) =>
@@ -427,77 +705,24 @@ export const useDesk = create<DeskStore>()(
             "Client accepted inception. Protocols and ethics are now open. Fieldwork is still blocked until ethics is Accepted.",
         });
       },
-      setCountryStatus: (id, countryId, status) => {
+      logEvent: (id, title, method, countryId, respondentId) => {
         const p = find(get().programmes, id);
         if (!p) return;
+        const gate = canLogEvent(
+          p.ethics,
+          p.inception,
+          countryId,
+          respondentId,
+          p.stages.protocols.state === "accepted",
+        );
         const country = p.ethics.countries.find((c) => c.id === countryId);
-        if (!country) return;
-        if (status === "CLEARED") {
-          const letter = country.letterName.trim();
-          const waiver = country.waiver.trim().length >= 40;
-          if (!letter && !waiver) {
-            set({
-              notice: `Cannot mark ${country.name} Cleared. Attach an approval letter or write a “not required” waiver.`,
-            });
-            return;
-          }
-        }
-        set({
-          programmes: mapProg(get().programmes, id, (prog) => ({
-            ...prog,
-            ethics: {
-              ...prog.ethics,
-              countries: prog.ethics.countries.map((c) =>
-                c.id === countryId ? { ...c, status } : c,
-              ),
-            },
-            stages: { ...prog.stages, protocols: working(prog.stages.protocols, "manual") },
-          })),
-          notice: null,
-        });
-      },
-      attachLetter: (id, countryId, fileName) =>
-        set((s) => ({
-          programmes: mapProg(s.programmes, id, (p) => ({
-            ...p,
-            ethics: {
-              ...p.ethics,
-              countries: p.ethics.countries.map((c) =>
-                c.id === countryId
-                  ? {
-                      ...c,
-                      letterName: fileName,
-                      letterDate: new Date().toISOString().slice(0, 10),
-                    }
-                  : c,
-              ),
-            },
-            stages: { ...p.stages, protocols: working(p.stages.protocols, "manual") },
-          })),
-        })),
-      setWaiver: (id, countryId, waiver) =>
-        set((s) => ({
-          programmes: mapProg(s.programmes, id, (p) => ({
-            ...p,
-            ethics: {
-              ...p.ethics,
-              countries: p.ethics.countries.map((c) =>
-                c.id === countryId ? { ...c, waiver } : c,
-              ),
-            },
-            stages: { ...p.stages, protocols: working(p.stages.protocols, "manual") },
-          })),
-        })),
-      logEvent: (id, title, method, countryId) => {
-        const p = find(get().programmes, id);
-        if (!p) return;
-        const gate = canLogEvent(p.ethics, p.inception, countryId);
-        const country = p.ethics.countries.find((c) => c.id === countryId);
+        const person = country?.respondents.find((r) => r.id === respondentId);
         const event = {
           id: uid(),
-          title: title.trim() || `${method} — ${country?.name ?? "site"}`,
+          title: title.trim() || `${method} — ${person?.role || person?.group || country?.name || "site"}`,
           method,
           countryId,
+          respondentId: respondentId || null,
           status: (gate.ok ? "planned" : "blocked") as "planned" | "blocked",
           blockedReason: gate.reason,
         };
@@ -528,7 +753,16 @@ export const useDesk = create<DeskStore>()(
     }),
     {
       name: "aa-merl-programmes-v1",
+      version: 2,
       partialize: (s) => ({ programmes: s.programmes }),
+      migrate: (persisted) => {
+        const state = persisted as { programmes?: unknown[] };
+        return {
+          programmes: (state.programmes ?? []).map((row) =>
+            migrateProgramme((row ?? {}) as Record<string, unknown>),
+          ),
+        };
+      },
     },
   ),
 );

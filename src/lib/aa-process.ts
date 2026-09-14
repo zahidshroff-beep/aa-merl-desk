@@ -146,7 +146,7 @@ export const EVALUATE_STAGES: StageDef[] = [
     purpose:
       "Finalise instruments, consent, safeguarding, and country ethics before any site work.",
     acceptedWhen:
-      "Each country is Hold or Cleared. Cleared requires an approval letter or a written “not required for this country.” Protocols exist for each method.",
+      "Each country is off UNKNOWN. Cleared requires a letter. Not required requires a named country-office confirmation that covers the evaluation (heightened-scrutiny countries cannot use this). Field stays blocked on UNKNOWN, REQUIRED, and IN PROCESS.",
     built: true,
   },
   {
@@ -155,7 +155,8 @@ export const EVALUATE_STAGES: StageDef[] = [
     n: 4,
     label: "Fieldwork and primary data",
     purpose: "KIIs, FGDs, surveys, observation. Evidence stays on the event and the person.",
-    acceptedWhen: "Sample frame exists. Planned events exist. Ethics Hold still blocks new events on that site.",
+    acceptedWhen:
+      "Sample frame has at least one complete respondent (group, role, programme engagement, contact). Planned events exist. Incomplete rows and closed sites refuse KIIs.",
     built: true,
   },
   {
